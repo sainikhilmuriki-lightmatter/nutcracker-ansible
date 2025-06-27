@@ -1,0 +1,18 @@
+- name: Deploy Credo crcli to Goodnow BMCs
+  hosts: goodnow_bmcs
+  become: true
+  tasks:
+    - name: Copy crcli binary to /usr/local/bin
+      copy:
+        src: ../files/crcli
+        dest : /usr/local/bin/crcli
+        mode: '0755'
+
+    - name: Verify crcli deployed
+      command: /usr/local/bin/crcli --help
+      register: crcli_output
+      ignore_errors: true
+
+    - name: Show crcli crcli_output
+      debug:
+        var:cli_outpt.stdout
