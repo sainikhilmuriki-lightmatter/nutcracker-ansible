@@ -1,18 +1,52 @@
-- name: Deploy Credo crcli to Goodnow BMCs
-  hosts: goodnow_bmcs
-  become: true
+---
+- name: Deploy Credo crcli to BMCs  # Main playbook to deploy crcli binaries
+  hosts: goodnow_bmcs               # Target hosts (from your inventory)
+  become: true                      # Run tasks with root privileges
+  gather_facts: true                # Collect host information (OS, architecture)
+
+  vars:
+    # Lookup table for 'crcli' binary names based on OS family and architecture.
+    # Ensure these files are placed in the '../files/' directory.
+    crcli_lookup:
+      RedHat:
+        x86_64:   "crcli-x86_64-linux"
+        i686:     "crcli-i686-linux"
+        aarch64:  "crcli-aarch64-linux"
+        armv7l:   "crcli-armv71-linux"
+      Debian:
+        x86_64:   "crcli-x86_64-linux"
+        i686:     "crcli-i686-linux"
+        aarch64:  "crcli-aarch64-linux"
+        armv7l:   "crcli-armv71-linux"
+      Darwin:
+        x86_64:   "crcli-x86_64-macos"
+        arm64:    "crcli-arm64-macos"
+
   tasks:
+    - name: Set crcli binary path based on OS and arch
+      # Determines the correct binary filename from 'crcli_lookup' for the target host.
+      set_fact:
+        crcli_binary: "{{ crcli_lookup.get(ansible_os_family, {}).get(ansible_architecture, '') }}"
+
+    - name: Fail if no matching crcli binary found
+      # Halts the playbook if the OS/architecture combination is not supported by the lookup.
+      fail:
+        msg: "Unsupported OS ({{ ansible_os_family }}) or architecture ({{ ansible_architecture }})."
+      when: crcli_binary == ""
+
     - name: Copy crcli binary to /usr/local/bin
       copy:
-        src: ../files/crcli
-        dest : /usr/local/bin/crcli
-        mode: '0755'
+        src: "../files/{{ crcli_binary }}" # Source file on the Ansible control node
+        dest: "/usr/local/bin/crcli"       # Destination path on the remote host
+        mode: '0755'                       # Set executable permissions
 
     - name: Verify crcli deployed
+      # Runs 'crcli --help' on the remote host to confirm successful deployment.
       command: /usr/local/bin/crcli --help
       register: crcli_output
       ignore_errors: true
 
-    - name: Show crcli crcli_output
+    - name: Show crcli help output
+      # Displays the output from the verification command.
       debug:
-        var:cli_outpt.stdout
+        var: crcli_output.stdout
